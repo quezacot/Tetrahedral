@@ -68,9 +68,9 @@ class Mesh {
     /** Synonym for IncidentIterator */
     typedef IncidentIterator incident_iterator;
 
-    /** Type of edge iterators, which iterate over all mesh edges. */
+    /** Type of tetrahedral iterators, which iterate over all tetrahedrals. */
     class TetrahedralIterator;
-    /** Synonym for EdgeIterator */
+    /** Synonym for TetrahedralIterator */
     typedef TetrahedralIterator tet_iterator;
 
     /** Return the number of nodes in the mesh. */
@@ -378,11 +378,6 @@ class Mesh {
          * m_ != nullptr
          * 0 <= node_uid1_, node_uid2 < g.real_.num_nodes()
          * No self edges: edge s.t. node_uid1_ != node_uid2_
-         * Every edge belongs to at least one triangle:
-         * 	∀i,j,Edge(i,j) in g_real_,∃ a tetrahedral tri from g_tri_ s.t.
-         * 	g_tri.hasedge(tet.node(0).index(), tet.node(1).index()) ,
-         * 	|| g_tet_.hasedge(tet.node(0).index(), tet.node(2).index()),
-         * 	|| g_tet_.hasedge(tet.node(1).index(), tet.node(2).index())
          */
         Mesh* m_; //Pointer to the parent mesh for the edge
         size_type node_uid1_, node_uid2_; //uid for the node in the parent mesh
@@ -512,10 +507,6 @@ class Mesh {
           } else {
             return -1.0 * v;
           }
-
-//        	return dot( (node(1).position() - node(0).position()),
-//        			cross ( node(2).position() - node(0).position(), node(3).position() - node(0).position() )  )/6.0;
-
         }
 
         /** Return true if tetrahedral is on the surface
@@ -556,41 +547,6 @@ class Mesh {
           }
           return false;
         }
-
-        /** Calculate the triangle's specific edge's outward normal vector
-         * @param[in] Valid edge of this triangle
-         * @return Point the edge's outward normal vector
-         *
-         * Complexity: O(1).
-
-        Point outward(const Edge& e) const {
-          // initialize to invalid index
-        	size_type uid3 = m_->g_real_.num_nodes();
-        	for( unsigned int i = 0; i < NUM_TET_ADJ_TET; ++i ) {
-        		const size_type& node_uid = m_->g_tet_.node(tet_uid_).value().node_uid_[i];
-        		if( node_uid != e.node(0).index() &&
-        		    node_uid != e.node(1).index() ) {
-        			uid3 = node_uid;
-        			break;
-        		}
-        	}
-        	assert(uid3 < m_->g_real_.num_nodes());
-
-        	// Vector math
-        	const Point& A = e.node(0).position();
-        	const Point& B = e.node(1).position();
-        	const Point& C = m_->g_real_.node(uid3).position();
-        	Point BA = A-B;
-        	Point normBA = Point( -1.0*BA.y, BA.x, BA.z );
-        	double D = dot( normBA, C-B );
-
-        	if(D > 0) {
-        		return -1.0 * normBA;
-        	}
-        	else {
-        		return normBA;
-        	}
-        }*/
 
       private:
         /** Private constructor for Mesh to construct tetrahedrals

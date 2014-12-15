@@ -4,7 +4,19 @@
 #
 
 # Executables to build
+EXEC += primes
+EXEC += viewer
+EXEC += subgraph
+EXEC += shortest_path
+EXEC += mass_spring
+EXEC += test_nodes
+EXEC += test_edges
+EXEC += mtl_test
+EXEC += poisson
+EXEC += shallow_water
+EXEC += test_mesh
 EXEC += test_tet_mesh
+EXEC += simulation
 
 # Get the shell name to determine the OS
 UNAME := $(shell uname)

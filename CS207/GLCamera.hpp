@@ -130,9 +130,9 @@ class GLCamera {
     point = p;
   }
 
-  /** Rotate the view about the local x-axis
+  /** Rotate the view about the local y-axis
    */
-  inline void rotate_x(float angle) {
+  inline void rotate_y(float angle) {
     // Rotate eye vector about the right vector
     eyeV = eyeV * cosf(angle) + upV * sinf(angle);
     // Normalize for numerical stability
@@ -144,9 +144,9 @@ class GLCamera {
     upV /= norm(upV);
   }
 
-  /** Rotate the view about the local y-axis
+  /** Rotate the view about the local x-axis
    */
-  inline void rotate_y(float angle) {
+  inline void rotate_x(float angle) {
     // Rotate eye about the up vector
     eyeV = eyeV * cosf(angle) + rightV * sinf(angle);
     // Normalize for numerical stability
@@ -156,6 +156,28 @@ class GLCamera {
     rightV = cross(upV,eyeV);
     // Normalize for numerical stability
     rightV /= norm(rightV);
+  }
+
+  /** Reset the vectors of view point to initial value
+   */
+  inline void reset_axis(){
+    upV = Point(0, 0, 1);
+    rightV = Point(0, 1, 0);
+    eyeV = Point(1, 0, 0);
+  }
+
+  /** Approximate the projection vector of mouse motion
+   */
+  inline Point invv(double x, double y){
+    x = x*dist;
+    y = y*dist;
+    return rightV*x + upV*y;
+  }
+
+  /** Approximate the projection point of mouse coordinates
+   */
+  inline Point refp(double x, double y){
+    return invv(x, y) + point;
   }
 
   /** Zoom by a scale factor

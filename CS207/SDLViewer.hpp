@@ -40,7 +40,7 @@ template<> struct gltype<int>            : public gltype_v<GL_INT> {};
 template<> struct gltype<float>          : public gltype_v<GL_FLOAT> {};
 template<> struct gltype<double>         : public gltype_v<GL_DOUBLE> {};
 
-// A default color functor that returns white for anything it recieves
+// A default color functor that returns white for anything it receives
 struct DefaultColor {
   template <typename NODE>
   Color operator()(const NODE&) {
@@ -56,8 +56,24 @@ struct DefaultPosition {
   }
 };
 
+/** @brief The base class for all SDLViewer callbacks.
+ *  Code adapted from Aaron Zampaglione and Fil Piasevoli
+ */
+class ViewerCallback {
+  public:
+
+    /**
+     * Child classes will overload this method.
+     *
+     * Child classes can look for whatever event type they desire
+     * in the implemented method.
+     */
+    virtual void operator()(const SDL_Event&) { }
+};
+
 /** SDLViewer class to view points and edges
  */
+template <class Callback>
 class SDLViewer {
  private:
   // Rendering surface
@@ -87,6 +103,12 @@ class SDLViewer {
 
   // Currently displayed label
   std::string label_;
+
+  // Maintain a list of keydown callbacks.
+  std::vector<Callback*> callbacks_;
+
+  // Keep camera rotating when keys are pressed.
+  bool rotating[4] = {false,false,false,false};
 
   struct safe_lock {
     SDLViewer* v_;
@@ -167,11 +189,32 @@ class SDLViewer {
     request_render();
   }
 
+  /**
+   * Adds a callback for viewer events.
+   *
+   * The callback must provide the functor method operator()
+   *
+   *   e.g. Callback::operator()(SDL_Event event);
+   *
+   * The callbacks will be executed in the order they were added.
+   */
+  void register_callback(Callback* callback) {
+    callbacks_.push_back(callback);
+  }
+
+  /**
+   * Returns the lock used during the event thread. Should
+   * only use this if a callback requires synchrony.
+   */
+  SDL_mutex* event_lock() {
+    return lock_;
+  }
+
   /** Replace graphics with the points in @a g.
    * @pre The G type and @a g object must have the following properties:
    *   <ol><li>G::size_type and G::node_type are types.</li>
    *       <li>G::size_type g.num_nodes() returns the number of nodes.</li>
-   *	     <li>G::node_type g.node(G::size_type i) returns a node object.</li>
+   *       <li>G::node_type g.node(G::size_type i) returns a node object.</li>
    *       <li>Point g.node(i).position() returns the position of node i.</li>
    *   </ol>
    *
@@ -396,6 +439,20 @@ class SDLViewer {
     request_render();
   }
 
+  /** Approximate the projection vector of mouse motion
+   *  Inverse y because the definition of y direction are different.
+   */
+  inline Point moveinline(double x, double y) {
+    return camera_.invv(x, -1*y);
+  }
+
+  /** Approximate the projection point of mouse coordinates
+   *  Normalize mouse coordinates by window size.
+   */
+  inline Point refpoint(double x, double y) {
+    return camera_.refp( x/window_width_ - 0.5 , 0.5 - y/window_height_);
+  }
+
   /** Request that the screen update shortly. */
   void request_render() {
     if (!render_requested_) {
@@ -487,6 +544,15 @@ class SDLViewer {
     while (SDL_WaitEvent(&event) >= 0) {
       safe_lock mutex(this);
       handle_event(event);
+      // Keep camera rotating when keys are pressed
+      if(rotating[0]) // UP
+        camera_.rotate_y(-0.05);
+      if(rotating[1]) // DOWN
+        camera_.rotate_y( 0.05);
+      if(rotating[2]) // RIGHT
+        camera_.rotate_x(-0.05);
+      if(rotating[3]) // LEFT
+        camera_.rotate_x( 0.05);
     }
   }
 
@@ -495,15 +561,15 @@ class SDLViewer {
    * @param[in] _event The SDL mouse, keyboard, or screen event to be handled
    */
   void handle_event(SDL_Event event) {
+    // Call all of the callbacks with the given event.
+    for (auto it = callbacks_.begin(); it != callbacks_.end(); ++it) {
+      auto callback = *it;
+      callback->operator()(event);
+    }
+
     switch (event.type) {
       // The mouse moved over the screen
       case SDL_MOUSEMOTION: {
-        // Left mouse button is down
-        if (event.motion.state == SDL_BUTTON(1)) {
-          camera_.rotate_x( 0.01*event.motion.yrel);
-          camera_.rotate_y(-0.01*event.motion.xrel);
-          request_render();
-        }
         // Right mouse button is down
         if (event.motion.state == SDL_BUTTON(3)) {
           camera_.pan(-0.004*event.motion.xrel, 0.004*event.motion.yrel, 0);
@@ -530,8 +596,45 @@ class SDLViewer {
         if (event.key.keysym.sym == SDLK_ESCAPE
             || event.key.keysym.sym == SDLK_q)
           exit(0);
+        // Keyboard 'UP' to rotate up side
+        if (event.key.keysym.sym == SDLK_UP){
+          rotating[0] = true;
+        }
+        // Keyboard 'DOWN' to rotate down side
+        if (event.key.keysym.sym == SDLK_DOWN){
+          rotating[1] = true;
+        }
+        // Keyboard 'RIGHT' to rotate right side
+        if (event.key.keysym.sym == SDLK_RIGHT){
+          rotating[2] = true;
+        }
+        // Keyboard 'LEFT' to rotate left side
+        if (event.key.keysym.sym == SDLK_LEFT){
+          rotating[3] = true;
+        }
+        // Keyboard 'L' to reset the vectors of view point of camera
+        if (event.key.keysym.sym == SDLK_l){
+          camera_.reset_axis();
+        }
+      } break;
 
-        request_render();
+      case SDL_KEYUP: {
+        // Stop rotating up side
+        if (event.key.keysym.sym == SDLK_UP){
+          rotating[0] = false;
+        }
+        // Stop rotating down side
+        if (event.key.keysym.sym == SDLK_DOWN){
+          rotating[1] = false;
+        }
+        // Stop rotating right side
+        if (event.key.keysym.sym == SDLK_RIGHT){
+          rotating[2] = false;
+        }
+        // Stop rotating left side
+        if (event.key.keysym.sym == SDLK_LEFT){
+          rotating[3] = false;
+        }
       } break;
 
       case SDL_VIDEOEXPOSE:
